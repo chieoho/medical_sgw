@@ -1,0 +1,71 @@
+日志打印输出原则：
+0. 减少日志输出的总量，方便排查问题
+1. 错误日志一定要打印
+2. 重复性的日志不打印
+3. 初始化的日志要多打印
+4. 资源的打开和关闭要打印
+5. 底层被调用的函数不打印正常的日志
+
+心跳调用链：
+
+main, worker_thread     | main.c:1712, main.c:1080
+run_events_loop         | main.c:1715
+run_timer_set           | timer_set.c:631
+run_one_timer           | timer_set.c:533
+on_hb_to_asm            | main.c:1406
+send_hb_to_asm          | main.c:1387
+send_message            | conn_mgmt.c:282
+start_monitoring_send   | events_poll.c:189
+start_monitoring_events | events_poll.c:148
+
+EPOLLOUT 事件处理调用链：
+
+main, worker_thread             | main.c:1712, main.c:1080
+run_events_loop                 | main.c:1715
+run_events_poll                 | events_poll.c:533
+handle_one_event                | events_poll.c:508
+deal_data_socket_events         | events_poll.c:394
+    send_message_internal       | conn_mgmt.c:299
+    stop_monitoring_events      | events_poll.c:201
+
+下载请求调用链：
+
+main, worker_thread           | main.c:1712, main.c:1080
+run_events_loop               | main.c:1715
+run_events_poll               | events_poll.c:533
+handle_one_event              | events_poll.c:508
+deal_data_socket_events       | events_poll.c:394
+on_can_recv                   | conn_mgmt.c:418
+deal_message                  | main.c:1059
+deal_client_message           | main.c:932
+handle_common1                | main.c:786
+handle_start_download_request | main.c:682
+
+接受客户端新连接的调用链：
+
+main, worker_thread             | main.c:1712, main.c:1080
+run_events_loop                 | main.c:1715
+run_events_poll                 | events_poll.c:533
+handle_one_event                | events_poll.c:508
+deal_server_socket_events       | events_poll.c:346
+create_client_fd                | events_poll.c:364
+on_new_conn_arrived             | events_poll.c:238
+
+运行时启动的线程：
+
+主线程：
+日志线程：log_thread    | mt_log.c:327
+工作线程：worker_thread | main.c:1162
+
+收到客户端上传的文件的存放路径：
+
+basedir_name/region_id/system_id/group_id/site_id/app_id/file_md5
+
+region_id: 2018
+system_id: 8
+group_id: 6
+site_id: 112
+app_id: 1
+file_md5: 9f10ef9b58b71dcec8bb58e482d12f6a
+
+/back_end_ufs1/2018/8/6/112/1/9f10ef9b58b71dcec8bb58e482d12f6a
