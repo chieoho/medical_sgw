@@ -342,6 +342,7 @@ int send_response_message(events_poll_t * events_poll, conn_info_t * conn_info, 
     }
     else
     {
+        // pr_msg_packed(msg);
         return len;
     }
 }
@@ -977,6 +978,7 @@ struct upctx {
     msg_t *msg;
     uint64_t filesize;
     char buffer[MAX_MESSAGE_LEN];
+    char filename[MAX_NAME_LEN];
 };
 
 /* 处理上传开始请求（CMD_START_UPLOAD_REQ） */
@@ -1239,6 +1241,8 @@ static int handle_start_upload_request(
     struct upctx ctx;
     ctx.ep = events_poll;
     ctx.ci = conn_info;
+    task_info_t *t = (task_info_t *)msg->data;
+    snprintf(ctx.filename, sizeof(ctx.filename), "%s", t->file_name);
 
     // 上传开始请求。这个消息已经接收完成，并且完成了消息检查
     ctx.msg = msg;
@@ -1247,7 +1251,7 @@ static int handle_start_upload_request(
         // 处理上传开始请求成功
         // log_debug("workrq0 finished ...");
     } else {
-        log_error("workrq0 failed: return code %d", rc0);
+        log_error("workrq0 failed: filename %s, retcode %d", ctx.filename, rc0);
         goto failed;
     }
     rc0 = sendrs0(&ctx);
@@ -1255,7 +1259,7 @@ static int handle_start_upload_request(
         // 发送上传开始响应结束，继续处理上传数据请求
         // log_debug("sendrs0 finished ...");
     } else {
-        log_error("sendrs0 failed: return code %d", rc0);
+        log_error("sendrs0 failed: filename %s, retcode %d", ctx.filename, rc0);
         goto failed;
     }
 
@@ -1270,7 +1274,10 @@ static int handle_start_upload_request(
             // 临时变换为平坦模式的编码风格，阅读起来方便一点。
             // log_debug("recvrq1 finished ...");
         } else {
-            log_error("recvrq1 failed: return code %d", rc1);
+            log_error("recvrq1 failed: %s (%lld / %lld)",
+                      ctx.filename,
+                      (long long int)leftsize,
+                      (long long int)ctx.filesize);
             goto failed;
         }
 
@@ -1283,7 +1290,10 @@ static int handle_start_upload_request(
             leftsize = leftsize - m->count;
             // log_debug("sock_fd:%d: %d recv, %lld left", ctx.ci->sock_fd, (int)m->count, (long long int)leftsize);
         } else {
-            log_error("bad message on CMD_UPLOAD_DATA_REQ!");
+            log_error("chkmsg1 failed: %s (%lld / %lld)",
+                      ctx.filename,
+                      (long long int)leftsize,
+                      (long long int)ctx.filesize);
             goto failed;
         }
 
@@ -1292,7 +1302,10 @@ static int handle_start_upload_request(
             // 处理消息成功，继续处理
             // log_debug("workrq1 finished ...");
         } else {
-            log_error("workrq1 failed!");
+            log_error("workrq1 failed: %s (%lld / %lld)",
+                      ctx.filename,
+                      (long long int)leftsize,
+                      (long long int)ctx.filesize);
             goto failed;
         }
 
@@ -1301,7 +1314,10 @@ static int handle_start_upload_request(
             // 发送响应成功，继续接收下一个上传数据的消息
             // log_debug("sendrs1 finished ...");
         } else {
-            log_error("sendrs1 failed!");
+            log_error("sendrs1 failed: %s (%lld / %lld)",
+                      ctx.filename,
+                      (long long int)leftsize,
+                      (long long int)ctx.filesize);
             goto failed;
         }
     }
@@ -1312,7 +1328,7 @@ static int handle_start_upload_request(
         // 接收上传结束请求成功
         // log_debug("recvrq2 finished ...");
     } else {
-        log_error("recvrq2 failed!");
+        log_error("recvrq2 failed: filename %s", ctx.filename);
         goto failed;
     }
     msg_t *m = ctx.msg;
@@ -1322,8 +1338,7 @@ static int handle_start_upload_request(
         // 接收到的消息是正常的
         // log_debug("chkmsg2 finished ...");
     } else {
-        log_error("bad CMD_UPLOAD_FINISH_REQ from sock_fd:%d",
-                  conn_info->sock_fd);
+        log_error("chkmsg2 failed: filename %s", ctx.filename);
         goto failed;
     }
     rc2 = workrq2(&ctx);
@@ -1331,7 +1346,7 @@ static int handle_start_upload_request(
         // 处理上传结束请求成功
         // log_debug("workrq2 finished ...");
     } else {
-        log_error("workrq2 failed!");
+        log_error("workrq2 failed: filename %s", ctx.filename);
         goto failed;
     }
     rc2 = sendrs2(&ctx);
@@ -1339,7 +1354,7 @@ static int handle_start_upload_request(
         // 发送上传结束响应成功
         // log_debug("sendrs2 finished ...");
     } else {
-        log_error("sendrs2 failed!");
+        log_error("sendrs2 failed: filename %s", ctx.filename);
         goto failed;
     }
 
@@ -2203,7 +2218,7 @@ static int handle_common4(
 
 int deal_client_message(events_poll_t * events_poll, conn_info_t * conn_info, msg_t * msg)
 {
-    // log_info("%s: %u bytes length", command_string(msg->command), msg->length);
+    // pr_msg_unpack(msg);
 
     switch (msg->command) {
         // 上传请求中处理一个文件的完整上传，包括开始上传请求，上传数据请求，上

@@ -464,8 +464,9 @@ static int deal_data_socket_epollout(
                             close(f->fd);
                             f->fd = -1;
                             f->sndstate = 2;
+                            c->is_sequence = 0;
                             start_monitoring_recv(e, sock_fd);
-                             stop_monitoring_send(e, sock_fd);
+                            start_monitoring_send(e, sock_fd);
                             return 0;
                         } else {
                             // 发送文件内容失败
@@ -475,7 +476,7 @@ static int deal_data_socket_epollout(
                         }
                     } else {
                         // log_info("%s already send completed", f->abs_file_name);
-                         stop_monitoring_send(e, sock_fd);
+                        start_monitoring_send(e, sock_fd);
                         start_monitoring_recv(e, sock_fd);
                         return 0;
                     }

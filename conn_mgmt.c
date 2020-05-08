@@ -369,22 +369,18 @@ int init_tcp_server(events_poll_t * events_poll, char * local_ip, uint16_t local
 	return sock_fd;
 }
 
-int send_message(events_poll_t * events_poll, conn_info_t * conn_info, uint8_t * data, int len)
+int send_message(events_poll_t *events_poll, conn_info_t *conn_info,
+                 uint8_t *data, int len)
 {
-    int frees = 0;
-
-    frees = get_ring_free_size(conn_info->send);
-    if (frees < len) {
-        log_error("ring buffer has no free space: %d free, %d want",
-                  frees, len);
+    int res = write_ring(conn_info->send, data, len);
+    if (res == len) {
+        start_monitoring_send(events_poll, conn_info->sock_fd);
+        return len;
+    } else {
+        log_error("write %d bytes to sock_fd:%d send buffer failed",
+                  len, conn_info->sock_fd);
         return -1;
     }
-
-    write_ring(conn_info->send, data, len);
-
-    start_monitoring_send(events_poll, conn_info->sock_fd);
-
-    return len;
 }
 
 int send_message_internal(events_poll_t * events_poll, conn_info_t * conn_info)

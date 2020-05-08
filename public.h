@@ -126,6 +126,9 @@ typedef struct msg_
     uint8_t data[0];
 } msg_t;
 
+extern void header_dump_packed(msg_t *h);
+extern void header_dump_unpack(msg_t *h);
+
 static inline void encode_msg(msg_t * msg)
 {
    msg->length = htobe32(msg->length);
@@ -198,23 +201,11 @@ typedef struct task_info_
 
 } task_info_t;
 
-#if 0
-static void pr_task_info(task_info_t *t)
-{
-    char output[4096];
-    snprintf(output, sizeof(output),
-             "operation: %u, region_id: %u, site_id: %u, app_id: %u, timestamp: %u, "
-             "sgw_port: %u, proxy_port: %u, sgw_ip: %d.%d.%d.%d, proxy_ip: %d.%d.%d.%d, sgw_id: %u, proxy_id: %u, "
-             "file_len: %lu, file_md5: %s, file_name: %s, metadata_len: %u",
-             t->operation, t->region_id, t->site_id, t->app_id, t->timestamp,
-             t->sgw_port, t->proxy_port,
-             t->sgw_ip & 0xFF, t->sgw_ip & 0xFF00, t->sgw_ip & 0xFF0000, t->sgw_ip & 0xFF000000,
-             t->proxy_ip & 0xFF, t->proxy_ip & 0xFF00, t->proxy_ip & 0xFF0000, t->proxy_ip & 0xFF000000,
-             t->sgw_id, t->proxy_id,
-             t->file_len, t->file_md5, t->file_name, t->metadata_len);
-    log_info("%s", output);
-}
-#endif
+extern void taskinfo_dump_unpack(task_info_t *t);
+extern void taskinfo_dump_packed(task_info_t *t);
+
+extern void pr_msg_packed(msg_t *m);
+extern void pr_msg_unpack(msg_t *m);
 
 static inline void encode_task_info(task_info_t * task_info)
 {

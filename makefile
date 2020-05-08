@@ -5,7 +5,8 @@ CFLAGS = -g -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -fPIC
 
 all: sgw test
 
-OBJECTS=timer_set.o mt_log.o events_poll.o conn_mgmt.o main.o cmdstr.o pathops.o md5.o md5ops.o
+OBJECTS=timer_set.o mt_log.o events_poll.o conn_mgmt.o main.o cmdstr.o pathops.o md5.o md5ops.o \
+    packet.o
 
 main.o: handler.c main.c
 	$(CC) -c $(CFLAGS) main.c -o $@
