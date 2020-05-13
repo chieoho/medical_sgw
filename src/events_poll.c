@@ -2,13 +2,13 @@
 // events_poll.c
 
 #include <assert.h>
-
 #include "config.h"
 #include "mt_log.h"
 #include "public.h"
 #include "conn_mgmt.h"
 #include "events_poll.h"
 #include "md5ops.h"
+#include "md5.h"
 
 #ifndef EPOLLRDHUP
 #define EPOLLRDHUP 0x2000
@@ -422,25 +422,25 @@ static int deal_data_socket_epollout(
 #else
                             int rc2 = 0;
 #endif
-                            if (rc2 == 0) {
-                                // 8字节的消息长度，32字节的md5长度
-                                int64_t msglen = htobe64(40 + f->filesize);
-                                char buffer[40];
-                                memmove(buffer, &msglen, 8);
-                                memmove(buffer+8, md5, 32);
-                                int sendlen = send(sock_fd, buffer, 40, MSG_MORE);
-                                if (sendlen == 40) {
-                                    // 发送消息前缀和md5校验和成功，继续发送文件内容
-                                    f->sndstate = 1;
-                                    goto send_blob;
-                                } else {
-                                    log_error("send msglen and md5 failed");
-                                    close_tcp_conn(e, sock_fd);
-                                }
+                            if (rc2 != 0) {
+                                log_warning("%s: look_for_md5 failed", f->abs_file_name);
+                                sprintf(md5, "%s", calculate_file_md5(f->abs_file_name));
+                            }
+                            // 8字节的消息长度，32字节的md5长度
+                            int64_t msglen = htobe64(40 + f->filesize);
+                            char buffer[40];
+                            memmove(buffer, &msglen, 8);
+                            memmove(buffer+8, md5, 32);
+                            int sendlen = send(sock_fd, buffer, 40, MSG_MORE);
+                            if (sendlen == 40) {
+                                // 发送消息前缀和md5校验和成功，继续发送文件内容
+                                f->sndstate = 1;
+                                goto send_blob;
                             } else {
-                                log_error("%s: look_for_md5 failed", f->abs_file_name);
+                                log_error("send msglen and md5 failed");
                                 close_tcp_conn(e, sock_fd);
                             }
+
                         } else {
                             log_error("find file %s md5 path failed", f->abs_file_name);
                             close_tcp_conn(e, sock_fd);

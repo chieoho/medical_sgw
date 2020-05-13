@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define HAVE_CHECK_MD5 0
+#define HAVE_CHECK_MD5 1
 
 #ifndef MS_PER_TICK
 #define MS_PER_TICK (1000) /* 单位是毫秒 */

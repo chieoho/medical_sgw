@@ -12,13 +12,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>
 
 #include "pathops.h"
-#include "public.h"
 #include "mt_log.h"
 
 extern char *default_md5sum_filename;

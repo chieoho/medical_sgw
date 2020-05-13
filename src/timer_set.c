@@ -2,7 +2,6 @@
 // timer_set.c
 
 #include <assert.h>
-
 #include "timer_set.h"
 
 typedef struct _list_head

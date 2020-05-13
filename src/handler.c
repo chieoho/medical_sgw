@@ -4,10 +4,7 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
-
-#include <sys/vfs.h>
 #include <unistd.h>
-
 #include "config.h"
 #include "mt_log.h"
 #include "public.h"
@@ -17,7 +14,7 @@
 #include "pathops.h"
 #include "md5ops.h"
 #include "version.h"
-#include "config.h"
+#include "md5.h"
 
 uint32_t region_id = 0;
 uint32_t system_id = 0;
@@ -1639,12 +1636,15 @@ static void backend_file_close_fd(struct backend_file *f)
 static int backend_file_check_md5(struct backend_file *f)
 {
 #if HAVE_CHECK_MD5
+    /*
     // 打开上传文件的 md5 校验
     char command[8192];
     snprintf(command, sizeof(command),
              "echo %s %s | md5sum --check --status -",
              f->md5, f->abs_file_name);
     return execute_command(command);
+     */
+    return check_md5(f->abs_file_name, f->md5);
 #else
     // 关闭上传文件的 md5 校验
     (void) f;
@@ -2957,4 +2957,10 @@ static void run_events_loop(int thread_id)
             run_timer_set(timer_sets[thread_id]);
         }
     }
+}
+
+void init_and_run(int argc, char * argv[])
+{
+    init_or_die(argc, argv);
+    run_events_loop(0); // main thread_id=0
 }

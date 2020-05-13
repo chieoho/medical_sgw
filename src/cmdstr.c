@@ -1,4 +1,3 @@
-#include "mt_log.h"
 #include "public.h"
 
 const char * command_string(uint32_t c)
