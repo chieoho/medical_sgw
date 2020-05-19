@@ -573,7 +573,9 @@ int open_path(char *path)
     char *fullpath;
 
     /* 0. 首先尝试打开文件，如果存在则直接返回 */
-    fd = open(path, O_RDWR | O_TRUNC);
+//    fd = open(path, O_RDWR | O_TRUNC);
+    /*医疗版本现在没有更新，所以这里不用截断，以后有更新需求时，另外增加更新命令字*/
+    fd = open(path, O_RDWR);
     if (fd >= 0) {
         return fd;
     } else /* 文件不存在，创建文件 */ {
@@ -1955,7 +1957,7 @@ static int handle_seq_download_request(
             f->filedone = 0;
             snprintf(f->abs_file_name, sizeof(f->abs_file_name), "%s", abs_file_name);
             // 暂时停止接收消息事件，开始处理发送事件
-             stop_monitoring_recv(e, c->sock_fd);
+            stop_monitoring_recv(e, c->sock_fd);
             start_monitoring_send(e, c->sock_fd);
             return 0;
         } else {
