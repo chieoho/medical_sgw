@@ -5,7 +5,7 @@ add_compile_options(-g -Wall -Wextra -Wno-unused-function -Wno-unused-parameter 
 target_link_libraries(sgw pthread crypto)
 set (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
-option(MD5 "enable check md5" off)
+option(MD5 "enable check md5" OFF)
 if(MD5)
     message("check md5 on")
     set(HAVE_CHECK_MD5 1)
