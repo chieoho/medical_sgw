@@ -1206,7 +1206,7 @@ static int workrq2(struct upctx *ctx)
     int rc = close_and_check_md5(c);
     if (rc == 0) {
         struct backend_file *f = &c->befiles[0];
-#if HAVE_CHECK_MD5
+#ifdef HAVE_CHECK_MD5
         rc = savemd5(f->abs_file_name, f->md5);
 #else
         rc = 0;
@@ -1637,7 +1637,7 @@ static void backend_file_close_fd(struct backend_file *f)
 
 static int backend_file_check_md5(struct backend_file *f)
 {
-#if HAVE_CHECK_MD5
+#ifdef HAVE_CHECK_MD5
     /*
     // 打开上传文件的 md5 校验
     char command[8192];
@@ -1795,7 +1795,7 @@ static int __handle_upload_or_download_finish_request(
         if (ret == 0) {
             // log_info("%s uploading: 4/4", conn_info->befiles[0].md5);
             struct backend_file *f = &conn_info->befiles[0];
-#if HAVE_CHECK_MD5
+#ifdef HAVE_CHECK_MD5
             int rc = savemd5(f->abs_file_name, f->md5);
 #else
             int rc = 0;
@@ -2757,8 +2757,13 @@ int listen_fd = -1;
 
 static void usage(const char *progname)
 {
-    printf("VERSION: %s\n", VERSION);
-    printf("please input like this: \r\n\r\n");
+    printf("\nVERSION: %s\n", VERSION);
+#ifdef HAVE_CHECK_MD5
+    printf("CHECK_MD5: %s\n\n", "on");
+#else
+    printf("CHECK_MD5: %s\n\n", "off");
+#endif
+    printf("please input like this: \r\n");
     printf("    %s -r 10001 -s 100001 -g 1 -l 192.168.120.70:7788:0x90000001 -c 212.77.88.99:55555 -a 192.168.120.80:8899:0x80000001 -b /back_end_ufs1,/back_end_ufs2,/back_end_ufs3 -w 4 -d \r\n", progname);
     printf("      -r : region id \r\n");
     printf("      -s : system id \r\n");

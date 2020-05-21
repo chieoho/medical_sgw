@@ -1,7 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-//#define HAVE_CHECK_MD5
+#cmakedefine MD5
+#cmakedefine HAVE_CHECK_MD5 @HAVE_CHECK_MD5@
 
 #ifndef MS_PER_TICK
 #define MS_PER_TICK (1000) /* 单位是毫秒 */

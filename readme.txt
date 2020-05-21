@@ -3,7 +3,8 @@
 yum install cmake3
 
 2、build下执行cmake3
-cmake3 ../
+cmake3 ..
+打开md5校验：cmake3 .. -DMD5=ON
 
 3、build下执行make
 make
