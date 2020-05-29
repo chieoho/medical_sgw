@@ -416,7 +416,7 @@ static int deal_data_socket_epollout(
                         if (rc1 == 0) {
                             // 获取文件上传时的 md5
                             char md5[32];
-#if HAVE_CHECK_MD5
+#ifdef MD5
                             int rc2 = look_for_md5(
                                 md5_path, f->abs_file_name, md5);
 #else
@@ -431,7 +431,17 @@ static int deal_data_socket_epollout(
                             char buffer[40];
                             memmove(buffer, &msglen, 8);
                             memmove(buffer+8, md5, 32);
-                            int sendlen = send(sock_fd, buffer, 40, MSG_MORE);
+                            int sendlen;
+                            conn_info_t conn_info;
+                            conn_info = conns_info[sock_fd];
+#ifdef TLS
+                            if(conn_info.peer_type == NODE_TYPE_ASM)
+                                sendlen = send(sock_fd, buffer, 40, MSG_MORE);
+                            else
+                                sendlen = SSL_write(conn_info.ssl, buffer, 40);
+#else
+                            sendlen = send(sock_fd, buffer, 40, MSG_MORE);
+#endif
                             if (sendlen == 40) {
                                 // 发送消息前缀和md5校验和成功，继续发送文件内容
                                 f->sndstate = 1;

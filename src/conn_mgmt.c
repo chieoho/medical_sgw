@@ -1,6 +1,11 @@
 
 // conn_mgmt.c
-
+#include "config.h"
+#ifdef TLS
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+extern SSL_CTX *ssl_ctx;
+#endif
 #include "mt_log.h"
 #include "public.h"
 #include "conn_mgmt.h"
@@ -408,7 +413,14 @@ int send_message_internal(events_poll_t * events_poll, conn_info_t * conn_info)
     data = &(send_ring->data[send_ring->read]);
 
 label_send:
+#ifdef TLS
+    if(conn_info->peer_type == NODE_TYPE_ASM)
+        send_len = send(conn_info->sock_fd, data, len, 0);
+    else
+        send_len = SSL_write(conn_info->ssl, data, len);
+#else
     send_len = send(conn_info->sock_fd, data, len, 0);
+#endif
     errno_cached = errno;
 
     //    log_debug("sock_fd:%d len:%d send_len:%d ", conn_info->sock_fd, len, send_len);
@@ -455,6 +467,9 @@ label_send:
 int recv_message_internal(conn_info_t * conn_info, uint8_t * buffer, int want_len)
 {
     int sock_fd = -1;
+#ifdef TLS
+    SSL *ssl;
+#endif
     int recv_len = 0;
     int recv_times = 0;
     int errno_cached = 0;
@@ -467,7 +482,12 @@ int recv_message_internal(conn_info_t * conn_info, uint8_t * buffer, int want_le
     sock_fd = conn_info->sock_fd;
 
 label_recv:
+#ifdef TLS
+    ssl = conn_info->ssl;
+    recv_len = SSL_read(ssl, buffer, want_len);
+#else
     recv_len = recv(sock_fd, buffer, want_len, 0);
+#endif
     errno_cached = errno;
     if (recv_len > 0) {
         return recv_len;
@@ -512,6 +532,18 @@ int on_new_conn_arrived(int server_fd)
     while (1)
     {
         sock_fd = accept(server_fd, (struct sockaddr *)&peer_address, &address_len);
+#ifdef TLS
+        SSL *ssl;
+        ssl = SSL_new(ssl_ctx);              /* get new SSL state with context */
+        SSL_set_fd(ssl, sock_fd);
+        if (SSL_accept(ssl) == -1){   /* do SSL-protocol accept */
+            log_error("*****ssl accept failed*****");
+            ERR_print_errors_fp(stderr);
+        }
+        else{
+            log_info("*****ssl accept success*****");
+        }
+#endif
         errno_cached = errno;
         if (sock_fd < 0)
         {
@@ -561,7 +593,9 @@ int on_new_conn_arrived(int server_fd)
             conn_info->peer_port = ntohs(peer_address.sin_port);
             conn_info->status = CONN_STATUS_CONNECTED;
             conn_info->sock_fd = sock_fd;
-            
+#ifdef TLS
+            conn_info->ssl = ssl;
+#endif
             conn_info->recv = create_ring(MAX_RING_DATA_LEN);
             if (conn_info->recv == NULL)
             {

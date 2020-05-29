@@ -15,6 +15,7 @@
 #include "md5ops.h"
 #include "version.h"
 #include "md5.h"
+#include "tls.h"
 
 uint32_t region_id = 0;
 uint32_t system_id = 0;
@@ -896,8 +897,13 @@ static int create_backend_fds(conn_info_t * conn_info, msg_t * msg)
 static ssize_t recv_packet(int sd, char *buf, ssize_t buflen)
 {
     ssize_t recvsize;
-
+#ifdef TLS
+    SSL *ssl;
+    ssl = conns_info[sd].ssl;
+    recvsize = SSL_read(ssl, buf, 4);
+#else
     recvsize = recv(sd, buf, 4, MSG_WAITALL);
+#endif
     if (recvsize == 4) {
         // log_debug("recv msglen from sock_fd:%d finished ...", sd);
     } else {
@@ -918,7 +924,11 @@ static ssize_t recv_packet(int sd, char *buf, ssize_t buflen)
     ssize_t leftsize = msglen - 4;
     ssize_t donesize = 4;
     while (leftsize > 0) {
+#ifdef TLS
+        recvsize = SSL_read(ssl, buf + donesize, leftsize);
+#else
         recvsize = recv(sd, buf + donesize, leftsize, MSG_WAITALL);
+#endif
         if (recvsize > 0) {
             leftsize = leftsize - recvsize;
             donesize = donesize + recvsize;
@@ -950,8 +960,19 @@ static int sendall(int sd, const char *buf, int len)
 {
     int left = len;
     int done = 0;
+    conn_info_t conn_info;
+    int n;
+
+    conn_info = conns_info[sd];
     while (left > 0) {
-        int n = send(sd, buf, left, MSG_WAITALL);
+#ifdef TLS
+        if(conn_info.peer_type == NODE_TYPE_ASM)
+            n = send(sd, buf, left, MSG_WAITALL);
+        else
+            n = SSL_write(conn_info.ssl, buf, left);
+#else
+        n = send(sd, buf, left, MSG_WAITALL);
+#endif
         if (n > 0) {
             left = left - n;
             done = done + n;
@@ -1206,7 +1227,7 @@ static int workrq2(struct upctx *ctx)
     int rc = close_and_check_md5(c);
     if (rc == 0) {
         struct backend_file *f = &c->befiles[0];
-#ifdef HAVE_CHECK_MD5
+#ifdef MD5
         rc = savemd5(f->abs_file_name, f->md5);
 #else
         rc = 0;
@@ -1637,7 +1658,7 @@ static void backend_file_close_fd(struct backend_file *f)
 
 static int backend_file_check_md5(struct backend_file *f)
 {
-#ifdef HAVE_CHECK_MD5
+#ifdef MD5
     /*
     // 打开上传文件的 md5 校验
     char command[8192];
@@ -1795,7 +1816,7 @@ static int __handle_upload_or_download_finish_request(
         if (ret == 0) {
             // log_info("%s uploading: 4/4", conn_info->befiles[0].md5);
             struct backend_file *f = &conn_info->befiles[0];
-#ifdef HAVE_CHECK_MD5
+#ifdef MD5
             int rc = savemd5(f->abs_file_name, f->md5);
 #else
             int rc = 0;
@@ -2757,12 +2778,14 @@ int listen_fd = -1;
 
 static void usage(const char *progname)
 {
-    printf("\nVERSION: %s\n", VERSION);
-#ifdef HAVE_CHECK_MD5
-    printf("CHECK_MD5: %s\n\n", "on");
+#ifdef VER
+    printf("VERSION:    medical sgw v%s\n", VERSION);
 #else
-    printf("CHECK_MD5: %s\n\n", "off");
+    printf("%s\n", "VERSION:    medical sgw");
 #endif
+    printf("BUILD_TIME: %s\n", BUILD_TIME);
+    printf("CHECK_MD5:  %s\n", CHECK_MD5);
+    printf("USE_TLS:    %s\n\n", USE_TLS);
     printf("please input like this: \r\n");
     printf("    %s -r 10001 -s 100001 -g 1 -l 192.168.120.70:7788:0x90000001 -c 212.77.88.99:55555 -a 192.168.120.80:8899:0x80000001 -b /back_end_ufs1,/back_end_ufs2,/back_end_ufs3 -w 4 -d \r\n", progname);
     printf("      -r : region id \r\n");
@@ -2846,7 +2869,13 @@ static void init1(char *progpath)
     }
     else
     {
-        log_info("-------- Storage Gateway start (version %s) --------", VERSION);
+#ifdef VER
+        log_info("-------- Storage Gateway start (version:medical_sgw_v%s build:%s check_md5:%s use_tls:%s) --------",
+                VERSION, BUILD_TIME, CHECK_MD5, USE_TLS);
+#else
+        log_info("-------- Storage Gateway start (version:medical_sgw build:%s check_md5:%s use_tls:%s) --------",
+                BUILD_TIME, CHECK_MD5, USE_TLS);
+#endif
     }
 }
 
@@ -2941,6 +2970,8 @@ static void init_or_die(int argc, char **argv)
     init2();
     init3();
     init4();
+    init_tls();
+
 }
 
 static void run_events_loop(int thread_id)

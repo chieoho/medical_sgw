@@ -1,7 +1,19 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-//#define HAVE_CHECK_MD5
+#define MD5
+#ifdef MD5
+#define CHECK_MD5 "yes"
+#else
+#define CHECK_MD5 "no"
+#endif
+
+#define TLS
+#ifdef TLS
+#define USE_TLS "yes"
+#else
+#define USE_TLS "no"
+#endif
 
 #ifndef MS_PER_TICK
 #define MS_PER_TICK (1000) /* 单位是毫秒 */

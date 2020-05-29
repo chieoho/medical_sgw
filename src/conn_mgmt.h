@@ -4,6 +4,10 @@
 #ifndef CONN_MGMT_H
 #define CONN_MGMT_H
 
+#include "config.h"
+#ifdef TLS
+#include <openssl/ssl.h>
+#endif
 #include "ring.h"
 #include "events_poll.h"
 
@@ -44,6 +48,9 @@ typedef struct conn_info_
     int next_sock_fd;
     
     int sock_fd;
+#ifdef TLS
+    SSL *ssl;
+#endif
     int status;
     int thread_id;
     int peer_type;
