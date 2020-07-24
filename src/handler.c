@@ -2970,7 +2970,9 @@ static void init_or_die(int argc, char **argv)
     init2();
     init3();
     init4();
+#ifdef TLS
     init_tls();
+#endif
 
 }
 

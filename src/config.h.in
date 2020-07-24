@@ -3,16 +3,16 @@
 
 #cmakedefine MD5
 #ifdef MD5
-#define CHECK_MD5 "yes"
+#define CHECK_MD5 "on"
 #else
-#define CHECK_MD5 "no"
+#define CHECK_MD5 "off"
 #endif
 
 #cmakedefine TLS
 #ifdef TLS
-#define USE_TLS "yes"
+#define USE_TLS "on"
 #else
-#define USE_TLS "no"
+#define USE_TLS "off"
 #endif
 
 #ifndef MS_PER_TICK

@@ -168,14 +168,13 @@ static inline void decode_msg(msg_t * msg)
 }
 
 
-#define MAX_MSG_DATA_LEN    (1024*128)
+#define MAX_MSG_DATA_LEN    (4 * 1024 * 1024)
 #define MAX_MESSAGE_LEN     ((MAX_MSG_DATA_LEN) + sizeof(msg_t))
-#define MAX_RING_DATA_LEN   (20*1024*1024) // 20MB
+#define MAX_RING_DATA_LEN   (20 * 1024 * 1024) // 20MB
 
 #define MD5_LEN     32
 #define MAX_NAME_LEN    255
 #define MAX_PATH_LEN    4095
-#define MAX_METADATA_LEN    3071
 
 typedef struct task_info_
 {
