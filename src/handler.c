@@ -5,6 +5,8 @@
 
 #include <assert.h>
 #include <unistd.h>
+#include <openssl/md5.h>
+#include <stdbool.h>
 #include "config.h"
 #include "mt_log.h"
 #include "public.h"
@@ -1226,21 +1228,8 @@ static int workrq2(struct upctx *ctx)
     msg_t *m = ctx->msg;
     int rc = close_and_check_md5(c);
     if (rc == 0) {
-        struct backend_file *f = &c->befiles[0];
-#ifdef MD5
-        rc = savemd5(f->abs_file_name, f->md5);
-#else
-        rc = 0;
-#endif
-        if (rc == 0) {
-            m->ack_code = 200;
-            return 0;
-        } else {
-            m->ack_code = 404;
-            log_error("savemd5 failed: filename %s, md5 %s",
-                      f->abs_file_name, f->md5);
-            return -1;
-        }
+        m->ack_code = 200;
+        return 0;
     } else {
         m->ack_code = 404;
         log_error("close_and_check_md5 on sock_fd:%d failed", c->sock_fd);
@@ -1259,6 +1248,14 @@ static int handle_start_upload_request(
     // log_debug("enter start upload request");
 
     struct upctx ctx;
+#ifdef MD5
+    MD5_CTX md_context;
+#endif
+    unsigned char c[MD5_DIGEST_LENGTH];
+    char *filemd5 = (char*) malloc(33 * sizeof(char));
+    msg_t *m;
+    FILE *hash_fp = NULL;
+
     ctx.ep = events_poll;
     ctx.ci = conn_info;
     task_info_t *t = (task_info_t *)msg->data;
@@ -1287,7 +1284,10 @@ static int handle_start_upload_request(
     tcp_setblocking(conn_info->sock_fd);
     int64_t leftsize = ctx.filesize;
     // log_debug("filesize: %lld", (long long int)leftsize);
-    while (leftsize > 0) {
+#ifdef MD5
+    MD5_Init (&md_context);
+#endif
+    while (1) {
         int rc1 = recvrq1(&ctx);
         if (rc1 == 0) {
             // 因为操作逻辑多，会导致代码缩进层次增多。
@@ -1301,22 +1301,14 @@ static int handle_start_upload_request(
             goto failed;
         }
 
-        msg_t *m = ctx.msg;
+        m = ctx.msg;
         decode_msg(m);
-        int goodmsg = chkmsg1(m);
-        if (goodmsg) {
-            // 接收到的消息是正常的，继续处理
-            // log_debug("chkmsg1 finished ...");
-            leftsize = leftsize - m->count;
-            // log_debug("sock_fd:%d: %d recv, %lld left", ctx.ci->sock_fd, (int)m->count, (long long int)leftsize);
-        } else {
-            log_error("chkmsg1 failed: %s (%lld / %lld)",
-                      ctx.filename,
-                      (long long int)leftsize,
-                      (long long int)ctx.filesize);
-            goto failed;
+        if (m->command == CMD_UPLOAD_FINISH_REQ) {
+            break;
         }
-
+#ifdef MD5
+        MD5_Update (&md_context, m->data, m->count);
+#endif
         rc1 = workrq1(&ctx);
         if (rc1 == 0) {
             // 处理消息成功，继续处理
@@ -1343,25 +1335,37 @@ static int handle_start_upload_request(
     }
 
     // 上传结束请求
-    int rc2 = recvrq2(&ctx);
-    if (rc2 == 0) {
-        // 接收上传结束请求成功
-        // log_debug("recvrq2 finished ...");
+#ifdef MD5
+    struct stat st;
+    int hash_file_size = 0;
+    MD5_Final (c, &md_context);
+    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        sprintf(&filemd5[i * 2], "%02x", (unsigned int)c[i]);
+    }
+    task_info_t *ti = (task_info_t *)m->data;
+    if (!strcmp(ti->file_md5, filemd5)) {
+        conn_info_t *ci = ctx.ci;
+        char *abs_file_name = ci->befiles[0].abs_file_name;
+        char hash_file_path[strlen(abs_file_name) + strlen("/.hash")];
+        get_path_head(abs_file_name, hash_file_path);
+        strcat(hash_file_path, "/.hash");
+        if(stat(hash_file_path, &st)==0)
+            hash_file_size = st.st_size;
+        if (hash_file_size >= 2 * (strlen(filemd5) + 1))
+            hash_fp = fopen(hash_file_path, "w");
+        else
+            hash_fp = fopen(hash_file_path, "a+");
+        fputs(filemd5, hash_fp);
+        fputs("\n", hash_fp);
+        fclose(hash_fp);
+        free(filemd5);
     } else {
-        log_error("recvrq2 failed: filename %s", ctx.filename);
+        free(filemd5);
+        log_error("check md5 failed");
         goto failed;
     }
-    msg_t *m = ctx.msg;
-    decode_msg(m);
-    int goodmsg = chkmsg2(m);
-    if (goodmsg) {
-        // 接收到的消息是正常的
-        // log_debug("chkmsg2 finished ...");
-    } else {
-        log_error("chkmsg2 failed: filename %s", ctx.filename);
-        goto failed;
-    }
-    rc2 = workrq2(&ctx);
+#endif
+    int rc2 = workrq2(&ctx);
     if (rc2 == 0) {
         // 处理上传结束请求成功
         // log_debug("workrq2 finished ...");
@@ -1656,51 +1660,17 @@ static void backend_file_close_fd(struct backend_file *f)
     f->fd = -1;
 }
 
-static int backend_file_check_md5(struct backend_file *f)
-{
-#ifdef MD5
-    /*
-    // 打开上传文件的 md5 校验
-    char command[8192];
-    snprintf(command, sizeof(command),
-             "echo %s %s | md5sum --check --status -",
-             f->md5, f->abs_file_name);
-    return execute_command(command);
-     */
-    return check_md5(f->abs_file_name, f->md5);
-#else
-    // 关闭上传文件的 md5 校验
-    (void) f;
-    return 0;
-#endif
-}
 
 static int close_and_check_md5(conn_info_t * c)
 {
-    int ret = 0;
-
     int i;
     for (i = 0; i < backend_cnt; i++)
     {
-        struct backend_file * f = &c->befiles[i];
-        int rc1;
-
         backend_file_close_fd(&c->befiles[i]);
-        // log_info("> closed %s", c->befiles[i].abs_file_name);
-
-        rc1 = backend_file_check_md5(f);
-        if (rc1 == 0) {
-            log_debug("%s successfully uploaded (%lld bytes)",
-                      c->befiles[i].abs_file_name,
-                      (long long int)c->befiles[i].filesize);
-        } else {
-            log_error("%s check md5 failed", c->befiles[i].abs_file_name);
-        }
-
-        ret |= rc1;
+        log_debug("%s successfully uploaded",
+                c->befiles[i].abs_file_name);
     }
-
-    return ret;
+    return 0;
 }
 
 static int __handle_upload_data_request(
@@ -1811,23 +1781,13 @@ static int handle_common2(
 static int __handle_upload_or_download_finish_request(
     events_poll_t * events_poll, conn_info_t * conn_info, msg_t * msg)
 {
+    char *abs_file_name;
+    bool md5_match = false;
+
     if (msg->command == CMD_UPLOAD_FINISH_REQ) {
         int ret = close_and_check_md5(conn_info);
         if (ret == 0) {
-            // log_info("%s uploading: 4/4", conn_info->befiles[0].md5);
-            struct backend_file *f = &conn_info->befiles[0];
-#ifdef MD5
-            int rc = savemd5(f->abs_file_name, f->md5);
-#else
-            int rc = 0;
-#endif
-            if (rc == 0) {
-                msg->ack_code = 200;
-            } else {
-                msg->ack_code = 404;
-                log_error("savemd5 failed: filename %s, md5 %s",
-                          f->abs_file_name, f->md5);
-            }
+            msg->ack_code = 200;
         } else {
             msg->ack_code = 404;
             log_error("close_and_check_md5 on sock_fd:%d failed", conn_info->sock_fd);
@@ -1838,8 +1798,39 @@ static int __handle_upload_or_download_finish_request(
             struct backend_file *f = &conn_info->befiles[i];
             backend_file_close_fd(f);
         }
-        log_info("%s successfully downloaded", conn_info->befiles[0].abs_file_name);
-        msg->ack_code = 200;
+        abs_file_name = conn_info->befiles[0].abs_file_name;
+#ifdef MD5
+        char *file_md5;
+        task_info_t *ti = (task_info_t *)msg->data;
+        file_md5 = ti->file_md5;
+        if (strlen(file_md5) != 0){
+            FILE *hash_fp = NULL;
+            char buff[33];
+            char hash_file_path[strlen(abs_file_name) + strlen("/.hash")];
+            get_path_head(abs_file_name, hash_file_path);
+            strcat(hash_file_path, "/.hash");
+            hash_fp = fopen(hash_file_path, "r");
+            while (fgets(buff, 34, hash_fp) != NULL){
+                buff[32] = '\0';
+                if (!strcmp(file_md5, buff)) {
+                    md5_match = true;
+                    break;
+                }
+            }
+        } else {
+            md5_match = true;  // 不须校验md5时，相当md5匹配
+        }
+
+#else
+        md5_match = true;
+#endif
+        if (md5_match){
+            log_info("%s successfully downloaded", abs_file_name);
+            msg->ack_code = 200;
+        } else {
+            log_info("%s downloaded failed", abs_file_name);
+            msg->ack_code = 404;
+        }
     }
 
     int len = sizeof(msg_t);
@@ -2784,8 +2775,8 @@ static void usage(const char *progname)
     printf("%s\n", "VERSION:    medical sgw");
 #endif
     printf("BUILD_TIME: %s\n", BUILD_TIME);
-    printf("CHECK_MD5:  %s\n", CHECK_MD5);
-    printf("USE_TLS:    %s\n\n", USE_TLS);
+    printf("MD5:        %s\n", CHECK_MD5);
+    printf("TLS:        %s\n\n", USE_TLS);
     printf("please input like this: \r\n");
     printf("    %s -r 10001 -s 100001 -g 1 -l 192.168.120.70:7788:0x90000001 -c 212.77.88.99:55555 -a 192.168.120.80:8899:0x80000001 -b /back_end_ufs1,/back_end_ufs2,/back_end_ufs3 -w 4 -d \r\n", progname);
     printf("      -r : region id \r\n");
@@ -2870,10 +2861,10 @@ static void init1(char *progpath)
     else
     {
 #ifdef VER
-        log_info("-------- Storage Gateway start (version:medical_sgw_v%s build:%s check_md5:%s use_tls:%s) --------",
+        log_info("-------- Storage Gateway start (version:medical_sgw_v%s build:%s md5:%s tls:%s) --------",
                 VERSION, BUILD_TIME, CHECK_MD5, USE_TLS);
 #else
-        log_info("-------- Storage Gateway start (version:medical_sgw build:%s check_md5:%s use_tls:%s) --------",
+        log_info("-------- Storage Gateway start (version:medical_sgw build:%s md5:%s tls:%s) --------",
                 BUILD_TIME, CHECK_MD5, USE_TLS);
 #endif
     }

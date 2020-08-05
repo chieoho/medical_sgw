@@ -524,3 +524,18 @@ off_t get_file_size(const char *filepath)
         return -1;
     }
 }
+
+char *get_path_head(char *str, char *head)
+{
+    int i, j;
+    for(i=(int)strlen(str); i >= 0; i--){
+        if(str[i] == '/'){
+            for(j=0; j < i; j++){
+                head[j] = str[j];
+            }
+            head[i] = '\0';
+            break;
+        }
+    }
+    return head;
+}

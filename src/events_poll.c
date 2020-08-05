@@ -2,13 +2,11 @@
 // events_poll.c
 
 #include <assert.h>
-#include "config.h"
 #include "mt_log.h"
 #include "public.h"
 #include "conn_mgmt.h"
 #include "events_poll.h"
 #include "md5ops.h"
-#include "md5.h"
 
 #ifndef EPOLLRDHUP
 #define EPOLLRDHUP 0x2000
@@ -416,16 +414,6 @@ static int deal_data_socket_epollout(
                         if (rc1 == 0) {
                             // 获取文件上传时的 md5
                             char md5[32];
-#ifdef MD5
-                            int rc2 = look_for_md5(
-                                md5_path, f->abs_file_name, md5);
-#else
-                            int rc2 = 0;
-#endif
-                            if (rc2 != 0) {
-                                log_warning("%s: look_for_md5 failed", f->abs_file_name);
-                                sprintf(md5, "%s", calculate_file_md5(f->abs_file_name));
-                            }
                             // 8字节的消息长度，32字节的md5长度
                             int64_t msglen = htobe64(40 + f->filesize);
                             char buffer[40];

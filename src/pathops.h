@@ -33,4 +33,6 @@ extern char *fill_many_dir_list(
     const char *mountpath, const char *dirs[], int nr_dir,
     struct file_list_result *out);
 
+extern char *get_path_head(char *str, char *head);
+
 #endif /* PATHOPS_H */
