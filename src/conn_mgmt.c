@@ -537,11 +537,8 @@ int on_new_conn_arrived(int server_fd)
         ssl = SSL_new(ssl_ctx);              /* get new SSL state with context */
         SSL_set_fd(ssl, sock_fd);
         if (SSL_accept(ssl) == -1){   /* do SSL-protocol accept */
-            log_error("*****ssl accept failed*****");
+            log_error("ssl accept failed");
             ERR_print_errors_fp(stderr);
-        }
-        else{
-            log_info("*****ssl accept success*****");
         }
 #endif
         errno_cached = errno;

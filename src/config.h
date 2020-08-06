@@ -8,7 +8,7 @@
 #define CHECK_MD5 "off"
 #endif
 
-//#define TLS
+#define TLS
 #ifdef TLS
 #define USE_TLS "on"
 #else

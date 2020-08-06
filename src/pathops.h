@@ -15,7 +15,6 @@ extern int calcpath(
     const char *mountpoint, const char *studyid, const char *serial,
     char *resultpath, int *resultlen);
 
-extern off_t get_file_size(const char *filepath);
 extern void split_serial(char *s, char **studyid, char **serial);
 extern void cut_mount_path(char *abspath, const char *mountpoint);
 

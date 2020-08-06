@@ -14,9 +14,7 @@
 #include "events_poll.h"
 #include "conn_mgmt.h"
 #include "pathops.h"
-#include "md5ops.h"
 #include "version.h"
-#include "md5.h"
 #include "tls.h"
 
 uint32_t region_id = 0;
@@ -1076,31 +1074,6 @@ static int recvrq1(struct upctx *ctx)
     return __recvrq(ctx);
 }
 
-static int chkmsg1(msg_t *m)
-{
-    if (m->command == CMD_UPLOAD_DATA_REQ) {
-        if (m->length == m->count + sizeof(msg_t)) {
-            if (0 < m->count && m->count <= MAX_MESSAGE_LEN) {
-                return 1;
-            } else {
-                log_error("%s: invalid payload length %u",
-                          command_string(m->command),
-                          m->count);
-                return 0;
-            }
-        } else {
-            log_error("%s: invalid length %u",
-                      command_string(m->command),
-                      m->length);
-            return 0;
-        }
-    } else {
-        log_error("command expect: %s, command recv: %s",
-                  command_string(CMD_UPLOAD_DATA_REQ),
-                  command_string(m->command));
-        return 0;
-    }
-}
 
 int check_stub_dir(const char *dirpath)
 {
@@ -1190,33 +1163,6 @@ static int sendrs1(struct upctx *ctx)
     }
 }
 
-static int recvrq2(struct upctx *ctx)
-{
-    return __recvrq(ctx);
-}
-
-static int chkmsg2(msg_t *m)
-{
-    if (m->command == CMD_UPLOAD_FINISH_REQ) {
-        if (m->length == sizeof(msg_t)) {
-            return 1;
-        } else {
-            log_error("%s: invalid length %u",
-                      command_string(m->command), m->length);
-            return 0;
-        }
-    } else {
-        log_error("command expect: %s, command recv: %s",
-                  command_string(CMD_UPLOAD_FINISH_REQ),
-                  command_string(m->command));
-        log_error("message content: length=%lld, total=%lld, count=%lld, offset=%lld",
-                  (long long int)m->length,
-                  (long long int)m->total,
-                  (long long int)m->count,
-                  (long long int)m->offset);
-        return 0;
-    }
-}
 
 static int workrq2(struct upctx *ctx)
 {

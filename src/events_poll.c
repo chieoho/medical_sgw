@@ -6,7 +6,6 @@
 #include "public.h"
 #include "conn_mgmt.h"
 #include "events_poll.h"
-#include "md5ops.h"
 
 #ifndef EPOLLRDHUP
 #define EPOLLRDHUP 0x2000
@@ -409,40 +408,30 @@ static int deal_data_socket_epollout(
                 }
                 if (f && f->fd >= 0) {
                     if (f->sndstate == 0) {
-                        char md5_path[2048];
-                        int rc1 = md5path(f->abs_file_name, md5_path);
-                        if (rc1 == 0) {
-                            // 获取文件上传时的 md5
-                            char md5[32];
-                            // 8字节的消息长度，32字节的md5长度
-                            int64_t msglen = htobe64(40 + f->filesize);
-                            char buffer[40];
-                            memmove(buffer, &msglen, 8);
-                            memmove(buffer+8, md5, 32);
-                            int sendlen;
-                            conn_info_t conn_info;
-                            conn_info = conns_info[sock_fd];
+                        // 获取文件上传时的 md5
+                        char md5[32];
+                        // 8字节的消息长度，32字节的md5长度
+                        int64_t msglen = htobe64(40 + f->filesize);
+                        char buffer[40];
+                        memmove(buffer, &msglen, 8);
+                        memmove(buffer+8, md5, 32);
+                        int sendlen;
 #ifdef TLS
-                            if(conn_info.peer_type == NODE_TYPE_ASM)
-                                sendlen = send(sock_fd, buffer, 40, MSG_MORE);
-                            else
-                                sendlen = SSL_write(conn_info.ssl, buffer, 40);
-#else
+                        conn_info_t conn_info = conns_info[sock_fd];
+                        if(conn_info.peer_type == NODE_TYPE_ASM)
                             sendlen = send(sock_fd, buffer, 40, MSG_MORE);
+                        else
+                            sendlen = SSL_write(conn_info.ssl, buffer, 40);
+#else
+                        sendlen = send(sock_fd, buffer, 40, MSG_MORE);
 #endif
-                            if (sendlen == 40) {
-                                // 发送消息前缀和md5校验和成功，继续发送文件内容
-                                f->sndstate = 1;
-                                goto send_blob;
-                            } else {
-                                log_error("send msglen and md5 failed");
-                                close_tcp_conn(e, sock_fd);
-                            }
-
+                        if (sendlen == 40) {
+                            // 发送消息前缀和md5校验和成功，继续发送文件内容
+                            f->sndstate = 1;
+                            goto send_blob;
                         } else {
-                            log_error("find file %s md5 path failed", f->abs_file_name);
+                            log_error("send msglen and md5 failed");
                             close_tcp_conn(e, sock_fd);
-                            return -1;
                         }
                     } else if (f->sndstate == 1) {
                         // 已经发送了消息前缀和校验和md5
