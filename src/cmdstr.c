@@ -34,5 +34,4 @@ const char * command_string(uint32_t c)
     case CMD_MIGRATION_CANCEL_RSP: return "CMD_MIGRATION_CANCEL_RSP";
     default: return "UNKNOWN";
     }
-    return "UNKNOWN";
 }

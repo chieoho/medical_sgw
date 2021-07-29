@@ -3,9 +3,9 @@
 
 #define VER
 #ifdef VER
-#define VERSION "1.0.0"
+#define VERSION "2.0.0"
 #endif
 
-#define BUILD_TIME "20-05-29 9:06:30"
+#define BUILD_TIME "2021-04-28 13:51:01"
 
 #endif // VERSION_H

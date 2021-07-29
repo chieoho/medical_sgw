@@ -863,13 +863,7 @@ static int create_one_backend_fd(conn_info_t * conn_info, msg_t * msg, int index
             }
             p = p + 1;
         }
-        if (md5len == 32 && t->file_md5[32] == '\0') {
-            return 0;
-        } else {
-            log_error("invalid filemd5 length %d", md5len);
-            print_hex(t->file_md5, 33);
-            return -1;
-        }
+        return 0;
     }
     else
     {
@@ -1282,8 +1276,8 @@ static int handle_start_upload_request(
 
     // 上传结束请求
 #ifdef MD5
-    struct stat st;
-    int hash_file_size = 0;
+//    struct stat st;
+//    int hash_file_size = 0;
     MD5_Final (c, &md_context);
     for(int i = 0; i < MD5_DIGEST_LENGTH; i++) {
         sprintf(&filemd5[i * 2], "%02x", (unsigned int)c[i]);
@@ -1295,12 +1289,17 @@ static int handle_start_upload_request(
         char hash_file_path[strlen(abs_file_name) + strlen("/.hash")];
         get_path_head(abs_file_name, hash_file_path);
         strcat(hash_file_path, "/.hash");
-        if(stat(hash_file_path, &st)==0)
-            hash_file_size = st.st_size;
-        if (hash_file_size >= 2 * (strlen(filemd5) + 1))
-            hash_fp = fopen(hash_file_path, "w");
-        else
-            hash_fp = fopen(hash_file_path, "a+");
+//        if(stat(hash_file_path, &st)==0)
+//            hash_file_size = st.st_size;
+//        if (hash_file_size >= 2 * (strlen(filemd5) + 1))
+//            hash_fp = fopen(hash_file_path, "w");
+//        else
+        hash_fp = fopen(hash_file_path, "a+");
+        if (hash_fp == NULL) {
+            log_error("open %s failed", hash_file_path);
+            free(filemd5);
+            goto failed;
+        }
         fputs(filemd5, hash_fp);
         fputs("\n", hash_fp);
         fclose(hash_fp);
@@ -1756,12 +1755,18 @@ static int __handle_upload_or_download_finish_request(
             get_path_head(abs_file_name, hash_file_path);
             strcat(hash_file_path, "/.hash");
             hash_fp = fopen(hash_file_path, "r");
-            while (fgets(buff, 34, hash_fp) != NULL){
-                buff[32] = '\0';
-                if (!strcmp(file_md5, buff)) {
-                    md5_match = true;
-                    break;
+            if (hash_fp != NULL) {
+                while (fgets(buff, 34, hash_fp) != NULL) {
+                    buff[32] = '\0';
+                    if (!strcmp(file_md5, buff)) {
+                        md5_match = true;
+                        break;
+                    }
                 }
+                fclose(hash_fp);
+            } else {
+                log_error("open %s failed", hash_file_path);
+                md5_match = false;
             }
         } else {
             md5_match = true;  // 不须校验md5时，相当md5匹配
